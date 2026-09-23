@@ -4,26 +4,118 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Parc EcoCirc Tremblay - Maquette 3D</title>
-  <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4/dist/model-viewer.min.js"></script>
   <style>
-    html, body { margin:0; height:100%; background:#f4f2ee; font-family: Calibri, Arial, sans-serif; }
-    model-viewer { width:100%; height:100%; }
-    .mention { position:absolute; bottom:10px; width:100%; text-align:center; font-size:12px; color:#777; }
+    html, body { margin:0; height:100%; background:#e9ecee; font-family: Calibri, "Segoe UI", Arial, sans-serif; color:#333; }
+    model-viewer { width:100%; height:100%; background:#e9ecee; --poster-color: transparent; }
+
+    .barre { position:absolute; top:0; left:0; height:3px; width:0; background:#b89a64; transition:width .3s; }
+    .chargement { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:15px; color:#666; }
+
+    .outils { position:absolute; left:12px; bottom:36px; display:flex; flex-wrap:wrap; gap:6px; max-width:calc(100% - 24px); }
+    .outils button {
+      font-family:inherit; font-size:14px; color:#333; background:#fff;
+      border:1px solid #c9c9c9; border-radius:3px; padding:7px 12px; cursor:pointer;
+    }
+    .outils button:hover { background:#f3f3f3; }
+    .outils button:focus-visible { outline:2px solid #b89a64; outline-offset:1px; }
+    .outils .actif { border-color:#8a8a8a; background:#f3f3f3; }
+
+    .zoom { position:absolute; right:12px; bottom:36px; display:flex; flex-direction:column; gap:6px; }
+    .zoom button {
+      font-family:inherit; font-size:20px; line-height:1; width:38px; height:38px; color:#333;
+      background:#fff; border:1px solid #c9c9c9; border-radius:3px; cursor:pointer;
+    }
+
+    .aide { position:absolute; top:12px; left:12px; font-size:13px; color:#555; background:rgba(255,255,255,.85); padding:5px 10px; border-radius:3px; }
+    .mention { position:absolute; bottom:10px; left:0; right:0; text-align:center; font-size:12px; color:#777; }
+
+    @media (max-width:600px) {
+      .outils button { font-size:13px; padding:6px 9px; }
+      .aide { font-size:12px; }
+    }
   </style>
 </head>
 <body>
-  <model-viewer
+  <model-viewer id="maquette"
     src="EcoCircTremblay3D.glb"
     alt="Parc EcoCirc Tremblay, maquette 3D"
     camera-controls
-    auto-rotate
-    auto-rotate-delay="3000"
-    rotation-per-second="8deg"
-    camera-orbit="45deg 60deg auto"
+    interaction-prompt="none"
+    camera-orbit="35deg 55deg 105%"
+    camera-target="0m 0m 0m"
+    min-camera-orbit="auto 0deg 12%"
+    max-camera-orbit="auto 82deg 150%"
+    interpolation-decay="120"
     environment-image="neutral"
-    shadow-intensity="1"
-    ar>
+    tone-mapping="neutral"
+    exposure="1.05"
+    shadow-intensity="0.6"
+    touch-action="pan-y">
+
+    <div class="barre" slot="progress-bar" id="barre"></div>
+    <div class="chargement" id="chargement">Chargement de la maquette...</div>
+
+    <div class="aide" id="aide">Glisser pour tourner, molette ou pincement pour zoomer, clic droit pour se déplacer</div>
+
+    <div class="outils">
+      <button data-vue="ensemble" class="actif">Vue d'ensemble</button>
+      <button data-vue="dessus">Vue de dessus</button>
+      <button data-vue="pieton1">Vue depuis l'accès</button>
+      <button data-vue="pieton2">Vue opposée</button>
+    </div>
+
+    <div class="zoom">
+      <button id="plus" aria-label="Zoomer">+</button>
+      <button id="moins" aria-label="Dézoomer">-</button>
+    </div>
+
+    <div class="mention">Perspective 3D indicative, document non contractuel</div>
   </model-viewer>
-  <div class="mention">Perspective 3D indicative, document non contractuel</div>
+
+  <script>
+    const mv = document.getElementById('maquette');
+    const barre = document.getElementById('barre');
+
+    mv.addEventListener('progress', (e) => {
+      const p = e.detail.totalProgress;
+      barre.style.width = (p * 100) + '%';
+      if (p === 1) setTimeout(() => { barre.style.display = 'none'; }, 400);
+    });
+    mv.addEventListener('load', () => {
+      document.getElementById('chargement').style.display = 'none';
+    });
+
+    const vues = {
+      ensemble: { orbit: '35deg 55deg 105%', target: '0m 0m 0m' },
+      dessus:   { orbit: '0deg 0deg 110%',   target: '0m 0m 0m' },
+      pieton1:  { orbit: '20deg 78deg 45%',  target: '0m 6m 0m' },
+      pieton2:  { orbit: '200deg 78deg 45%', target: '0m 6m 0m' }
+    };
+
+    document.querySelectorAll('.outils button').forEach((b) => {
+      b.addEventListener('click', () => {
+        const v = vues[b.dataset.vue];
+        mv.cameraTarget = v.target;
+        mv.cameraOrbit = v.orbit;
+        document.querySelectorAll('.outils button').forEach((x) => x.classList.remove('actif'));
+        b.classList.add('actif');
+      });
+    });
+
+    function zoomer(facteur) {
+      const o = mv.getCameraOrbit();
+      mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad ' + (o.radius * facteur) + 'm';
+    }
+    document.getElementById('plus').addEventListener('click', () => zoomer(0.75));
+    document.getElementById('moins').addEventListener('click', () => zoomer(1.33));
+
+    // Le message d'aide disparaît après la première manipulation
+    mv.addEventListener('camera-change', (e) => {
+      if (e.detail.source === 'user-interaction') {
+        document.getElementById('aide').style.display = 'none';
+      }
+    }, { once: false });
+  </script>
 </body>
 </html>
